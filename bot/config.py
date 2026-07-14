@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+﻿from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Literal
 import yaml
@@ -46,6 +46,16 @@ class BotConfig(BaseSettings):
 
     adapter_adapter: str = "terminal"
 
+    # === QQ 适配器配置 ===
+    qq_ws_url: str = "ws://localhost:8080"
+    qq_token: str = ""
+
+    # === 语音配置 ===
+    voice_enabled: bool = False
+    voice_edge_voice: str = "zh-CN-XiaoxiaoNeural"
+    voice_edge_rate: str = "+0%"
+    voice_edge_volume: str = "+0%"
+
     debug: bool = False
 
     @property
@@ -89,6 +99,10 @@ class BotConfig(BaseSettings):
         for section in ("llm", "personality", "memory", "adapter"):
             section_data = data.get(section, {})
             for key, value in section_data.items():
-                flat[f"{section}_{key}"] = value
+                if key in ("qq_ws_url", "qq_token"):
+                    flat[key] = value
+                else:
+                    flat[f"{section}_{key}"] = value
         flat["debug"] = data.get("debug", False)
         return cls(**flat)
+

@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 
 from .models import Message, Reply
 from .event_bus import EventBus, EventType
@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 class ConversationBuffer:
-    def __init__(self, max_size: int = 20):
+    """短期对话消息缓冲区（FIFO 滑动窗口）。"""
+
+    def __init__(self, max_size: int = 100):
         self._messages: list[LLMMessage] = []
         self._max_size = max_size
 
@@ -23,41 +25,67 @@ class ConversationBuffer:
 
 
 class MessagePipeline:
+    """消息处理管道：人格注入 -> 记忆检索 -> LLM 调用 -> 记忆存储。"""
+
     def __init__(
         self,
         llm_engine: BaseLLMEngine,
         personality_engine: PersonalityEngine,
         event_bus: EventBus,
-        short_term_size: int = 20,
+        memory_manager=None,
     ):
         self._llm = llm_engine
         self._personality = personality_engine
         self._event_bus = event_bus
-        self._buffers: dict[str, ConversationBuffer] = {}
-        self._short_term_size = short_term_size
-
-    def _get_buffer(self, session_id: str) -> ConversationBuffer:
-        if session_id not in self._buffers:
-            self._buffers[session_id] = ConversationBuffer(self._short_term_size)
-        return self._buffers[session_id]
+        self._memory = memory_manager
 
     async def process(self, message: Message) -> Reply:
         await self._event_bus.publish(EventType.MESSAGE_PRE_PROCESS, message=message)
 
+        # 查询长期记忆并注入上下文
         system_prompt = self._personality.build_system_prompt()
 
-        buffer = self._get_buffer(message.session_id)
-        llm_messages = [LLMMessage(role="system", content=system_prompt)]
-        llm_messages.extend(buffer.get_messages())
-        llm_messages.append(LLMMessage(role="user", content=message.text or ""))
+        # 存储到记忆系统
+        if self._memory:
+            context_messages, memories = await self._memory.get_context(
+                message.session_id, message.text or ""
+            )
+            if memories:
+                memory_lines = []
+                for m in memories[:3]:
+                    mtype = m["metadata"].get("type", "记忆")
+                    content = m["content"][:200]
+                    memory_lines.append(f"- [{mtype}] {content}")
+                system_prompt += (
+                    "\n\n## ??????\n" + "\n".join(memory_lines)
+                )
+        else:
+            context_messages = []
 
+        # ?? LLM ??
+        llm_messages = [LLMMessage(role="system", content=system_prompt)]
+        if context_messages:
+            llm_messages.extend(context_messages)
+        llm_messages.append(
+            LLMMessage(role="user", content=message.text or "")
+        )
+
+        # LLM ??
         reply_text = await self._llm.chat(llm_messages)
 
-        buffer.add(LLMMessage(role="user", content=message.text or ""))
-        buffer.add(LLMMessage(role="assistant", content=reply_text))
+        # ???????
+        if self._memory:
+            await self._memory.store_interaction(
+                message.session_id,
+                message.text or "",
+                reply_text,
+                user_id=message.user_id,
+            )
 
         reply = Reply(text=reply_text)
-        await self._event_bus.publish(EventType.MESSAGE_POST_PROCESS, message=message, reply=reply)
+        await self._event_bus.publish(
+            EventType.MESSAGE_POST_PROCESS, message=message, reply=reply
+        )
         await self._event_bus.publish(EventType.REPLY_PRE_SEND, reply=reply)
-
         return reply
+

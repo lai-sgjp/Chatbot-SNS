@@ -1,7 +1,7 @@
-# ChatBot SNS 
-# config.yml 
+# ChatBot SNS 配置
+# 复制为 config.yml 后编辑
 
-# --- LLM Settings ---
+# --- LLM 配置 ---
 llm:
   provider: "openai"
   api_key: ""
@@ -10,17 +10,31 @@ llm:
   temperature: 0.7
   max_tokens: 8192
 
-# --- Personality Settings ---
+# --- 人格配置 ---
 personality:
   card_dir: "bot/personality/cards"
   default_card: "default"
 
-# --- Memory Settings ---
+# --- 记忆配置 ---
 memory:
   short_term_size: 100
+  chroma_db_path: "data/chroma_db"
 
-# --- Adapter Settings ---
+# --- 适配器配置 ---
+# terminal: 终端交互（默认）
+# qq: QQ OneBot v11 适配器（需 NapCat / Lagrange 等 OneBot 实现）
 adapter:
   adapter: "terminal"
+  # QQ 适配器配置（adapter 为 qq 时生效）
+  # NapCat Docker 部署: docker run -d -p 3000:3000 -p 3001:3001 -p 6099:6099 --name napcat mlikiowa/napcat-docker
+  qq_ws_url: "ws://localhost:3001"
+  qq_token: ""
+
+# --- 语音配置 ---
+voice:
+  enabled: false
+  edge_voice: "zh-CN-XiaoxiaoNeural"
+  edge_rate: "+0%"
+  edge_volume: "+0%"
 
 debug: false

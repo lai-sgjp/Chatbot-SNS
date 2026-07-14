@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from unittest.mock import AsyncMock, Mock
 from bot.models import Message
 from bot.event_bus import EventBus, EventType
@@ -9,7 +9,7 @@ from bot.pipeline import MessagePipeline
 
 @pytest.fixture
 def mock_llm():
-    engine = Mock(spec=BaseLLMEngine)
+    engine = AsyncMock(spec=BaseLLMEngine)
     engine.chat = AsyncMock(return_value="你好！我是助手。")
     return engine
 
@@ -36,12 +36,13 @@ async def test_pipeline_process(mock_llm, mock_personality, event_bus):
     message = Message(
         text="你好",
         user_id="user1",
-        user_name="测试用户",
+        user_name="你是助手",
         session_id="test_session",
     )
     reply = await pipeline.process(message)
     assert reply.text == "你好！我是助手。"
     mock_llm.chat.assert_awaited_once()
+    mock_personality.build_system_prompt.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -67,9 +68,9 @@ async def test_pipeline_event_hooks(mock_llm, mock_personality, event_bus):
         event_bus=event_bus,
     )
     message = Message(
-        text="测试事件",
+        text="你是助手",
         user_id="user1",
-        user_name="测试用户",
+        user_name="你是助手",
         session_id="test_session",
     )
     await pipeline.process(message)
@@ -77,15 +78,23 @@ async def test_pipeline_event_hooks(mock_llm, mock_personality, event_bus):
 
 
 @pytest.mark.asyncio
-async def test_pipeline_conversation_buffer(mock_llm, mock_personality, event_bus):
+async def test_pipeline_with_memory(mock_llm, mock_personality, event_bus):
+    from bot.memory.manager import MemoryManager
+
+    mm = MemoryManager(short_term_size=10)
+    await mm.store_interaction("s1", "???", "??1")
+    await mm.store_interaction("s1", "???", "??2")
+
     pipeline = MessagePipeline(
         llm_engine=mock_llm,
         personality_engine=mock_personality,
         event_bus=event_bus,
+        memory_manager=mm,
     )
-    msg1 = Message(text="第一轮", user_id="u1", user_name="u", session_id="s1")
-    msg2 = Message(text="第二轮", user_id="u1", user_name="u", session_id="s1")
-    await pipeline.process(msg1)
-    await pipeline.process(msg2)
-    buffer = pipeline._get_buffer("s1")
-    assert len(buffer.get_messages()) == 4
+    msg = Message(text="你好", user_id="u1", user_name="u", session_id="s1")
+    reply = await pipeline.process(msg)
+    assert reply.text == "你好！我是助手。"
+
+    context, memories = await mm.get_context("s1", "??")
+    assert len(context) == 6
+

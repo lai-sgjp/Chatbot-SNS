@@ -20,4 +20,14 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+
+# NapCat QR code (temporary)
+qrcode.png
+npcat_webui_screenshot.png
 config.yml
+data/chroma_cache/
+data/hf_cache/
+data/st_cache/
+data/transformers_cache/
+data/xdg_cache/
+data/onnx_models/

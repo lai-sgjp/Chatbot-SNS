@@ -1,7 +1,26 @@
-import asyncio
+﻿import asyncio
+import locale
 import signal
 import sys
 from pathlib import Path
+
+# 修复 Windows 控制台中文编码：强制使用 UTF-8
+if sys.platform == "win32":
+    import subprocess
+    try:
+        subprocess.run(["chcp", "65001"], capture_output=True, shell=True)
+    except Exception:
+        pass
+    if hasattr(sys.stderr, "reconfigure"):
+        try:
+            sys.stderr.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
 from loguru import logger
 
@@ -9,6 +28,7 @@ from bot.config import BotConfig
 from bot.event_bus import EventBus
 from bot.llm.openai_engine import OpenAIEngine
 from bot.personality.engine import PersonalityEngine
+from bot.memory.manager import MemoryManager
 from bot.pipeline import MessagePipeline
 from bot.adapters.terminal.adapter import TerminalAdapter
 
@@ -26,11 +46,11 @@ def setup_logging(debug: bool = False):
         level="DEBUG",
         rotation="1 day",
         retention="7 days",
+        encoding="utf-8",
     )
 
 
 def _check_config(config: BotConfig):
-    """启动时检查配置，给出有用的提示。"""
     key = config.llm_api_key
     if not key or key == "sk-placeholder":
         logger.warning(
@@ -50,14 +70,28 @@ def _check_config(config: BotConfig):
 
     logger.info(
         "LLM 配置: {} @ {} 模型={} max_tokens={}",
-        config.llm_provider, config.llm_base_url,
-        config.llm_model, config.llm_max_tokens,
+        config.llm_provider,
+        config.llm_base_url,
+        config.llm_model,
+        config.llm_max_tokens,
     )
+
+    if config.adapter_adapter == "qq":
+        logger.info("QQ 适配器配置: WebSocket={}", config.qq_ws_url)
+    elif config.voice_enabled:
+        logger.info("语音已启用: 引擎=edge, 音色={}", config.voice_edge_voice)
+
+    if config.llm_max_tokens > 32768:
+        logger.warning(
+            "max_tokens 设为 {}，这是输出 token 上限而非上下文窗口！"
+            "大多数 API 的上限在 4096~16384 之间，建议设为 8192。",
+            config.llm_max_tokens,
+        )
+
     return True
 
 
 async def main():
-    # 优先加载 config.yml（用户私有），其次是 config.example.yml（示例）
     for candidate in ["config.yml", "config.example.yml"]:
         config_path = Path(candidate)
         if config_path.exists():
@@ -68,8 +102,7 @@ async def main():
     config = BotConfig.from_yaml(config_path) if config_path else BotConfig()
     setup_logging(config.debug)
 
-    logger.info("ChatBot SNS v0.1.0 启动中...")
-
+    logger.info("ChatBot SNS v0.2.0 启动中...")
     if config.debug:
         logger.debug("加载的配置: {}", config.model_dump())
 
@@ -89,15 +122,27 @@ async def main():
         card_name=config.personality_default_card,
     )
 
+    memory_manager = MemoryManager(
+        short_term_size=config.memory_short_term_size,
+        chroma_db_path=config.memory_chroma_db_path,
+    )
+
     pipeline = MessagePipeline(
         llm_engine=llm_engine,
         personality_engine=personality_engine,
         event_bus=event_bus,
-        short_term_size=config.memory_short_term_size,
+        memory_manager=memory_manager,
     )
 
     if config.adapter_adapter == "terminal":
         adapter = TerminalAdapter(pipeline=pipeline)
+    elif config.adapter_adapter == "qq":
+        from bot.adapters.qq.adapter import QQAdapter
+        adapter = QQAdapter(
+            pipeline=pipeline,
+            ws_url=config.qq_ws_url,
+            token=config.qq_token,
+        )
     else:
         raise ValueError(f"不支持的适配器: {config.adapter_adapter}")
 
