@@ -42,3 +42,7 @@
 - 更新 config.example.yml：清理乱码、对齐 Phase 2 配置结构
 - 18 个单元测试全部通过
 - Phase 2 全部完成
+- 创建 README.md：项目概述/技术栈/目录结构/部署步骤/配置参数/接口使用说明
+- 创建 start.bat：Windows 一键启动脚本（Docker + NapCat + ChatBot）
+- 配置 NapCat autoLoginAccount 实现开机自动登录
+- 创建 Phase 2 面试准备文档（向量检索/记忆管理/OneBot协议/Docker部署/TTS/配置系统/异步测试）

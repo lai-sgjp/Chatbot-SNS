@@ -8,6 +8,7 @@ Python >= 3.11, asyncio, OpenAI-compatible API, ChromaDB (Phase 2), GPT-SoVITS (
 ## Project Docs
 - [todo_plan.md](/E:/work/ChatBot_SNS/todo_plan.md) - 项目进度
 - [work_log.md](/E:/work/ChatBot_SNS/work_log.md) - 工作日志
+- [README.md](/E:/work/ChatBot_SNS/README.md) - 项目说明文档（每个阶段结束必须检查更新）
 - [docs/phase-1-interview-prep.md](/E:/work/ChatBot_SNS/docs/phase-1-interview-prep.md) - Phase 1 面试准备
 - [docs/phase-2-interview-prep.md](/E:/work/ChatBot_SNS/docs/phase-2-interview-prep.md) - Phase 2 面试准备
 
@@ -39,3 +40,13 @@ Note: WebSocket server must bind to 0.0.0.0 (not 127.0.0.1) inside Docker contai
 PowerShell 的 `@''@` here-string 通过管道输入到 Python（`| python`）时，中文字符会丢失变成 `?`。
 解决方案：始终使用 `Set-Content -Encoding UTF8` 或 `Add-Content -Encoding UTF8` 直接写入文件，避免通过 Python 管道中转。
 `apply_patch` 工具可以正确处理中文字符，可以直接用于含中文的文件创建和编辑。
+
+## 固定步骤：阶段结束检查清单
+每个阶段（Phase）结束时，必须执行以下固定步骤：
+1. 运行全部单元测试（python -m pytest tests/ -v）
+2. 更新 config.example.yml 对齐当前配置结构
+3. 更新 work_log.md 补充本阶段完整记录
+4. 更新 agents.md 补充 Phase 摘要
+5. 创建/更新 docs/phase-N-interview-prep.md 面试准备文档
+6. **检查并维护 README.md**（如有新功能/配置/部署方式变更必须更新）
+7. Git commit 并 push
