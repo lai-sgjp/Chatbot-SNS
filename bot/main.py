@@ -30,26 +30,26 @@ def setup_logging(debug: bool = False):
 
 
 def _check_config(config: BotConfig):
-    """????????????????"""
+    """启动时检查配置，给出有用的提示。"""
     key = config.llm_api_key
     if not key or key == "sk-placeholder":
         logger.warning(
-            "LLM API Key ??????? config.yml ?? llm.api_key?"
-            "??????? BOT_LLM_API_KEY"
+            "LLM API Key 未配置！请编辑 config.yml 设置 llm.api_key，"
+            "或设置环境变量 BOT_LLM_API_KEY"
         )
         return False
 
     base = config.llm_base_url
     if "api.openai.com" in base and not key.startswith("sk-"):
         logger.warning(
-            "base_url ?? OpenAI ???? API Key ?????? "
-            "(?? sk- ??)"
+            "base_url 指向 OpenAI 官方，但 API Key 格式似乎不对 "
+            "(应以 sk- 开头)"
         )
     elif "localhost" in base or "127.0.0.1" in base:
-        logger.info("base_url ????????? Ollama ??????????")
+        logger.info("base_url 指向本地地址，确认 Ollama 或其他本地服务已启动")
 
     logger.info(
-        "LLM ??: {} @ {} ??={} max_tokens={}",
+        "LLM 配置: {} @ {} 模型={} max_tokens={}",
         config.llm_provider, config.llm_base_url,
         config.llm_model, config.llm_max_tokens,
     )
@@ -57,7 +57,7 @@ def _check_config(config: BotConfig):
 
 
 async def main():
-    # ???? config.yml?????????? config.example.yml????
+    # 优先加载 config.yml（用户私有），其次是 config.example.yml（示例）
     for candidate in ["config.yml", "config.example.yml"]:
         config_path = Path(candidate)
         if config_path.exists():
@@ -68,10 +68,10 @@ async def main():
     config = BotConfig.from_yaml(config_path) if config_path else BotConfig()
     setup_logging(config.debug)
 
-    logger.info("ChatBot SNS v0.1.0 ???...")
+    logger.info("ChatBot SNS v0.1.0 启动中...")
 
     if config.debug:
-        logger.debug("?????: {}", config.model_dump())
+        logger.debug("加载的配置: {}", config.model_dump())
 
     event_bus = EventBus()
 
@@ -99,15 +99,15 @@ async def main():
     if config.adapter_adapter == "terminal":
         adapter = TerminalAdapter(pipeline=pipeline)
     else:
-        raise ValueError(f"???????: {config.adapter_adapter}")
+        raise ValueError(f"不支持的适配器: {config.adapter_adapter}")
 
     if not _check_config(config):
-        logger.warning("??????????? LLM ?????")
+        logger.warning("配置不完整，仍可启动但 LLM 调用会失败")
 
     stop_event = asyncio.Event()
 
     def _signal_handler():
-        logger.info("???????????...")
+        logger.info("收到中断信号，正在关闭...")
         stop_event.set()
 
     loop = asyncio.get_event_loop()
@@ -122,11 +122,11 @@ async def main():
     except asyncio.CancelledError:
         pass
     finally:
-        logger.info("????")
+        logger.info("程序退出")
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("???????")
+        logger.info("程序被用户中断")
